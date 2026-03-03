@@ -18,7 +18,7 @@
 
 - 学：读本文件，了解相关OS知识，在某个开发环境（在线或本地）中正确编译运行rcore-tutorial-ch6；根据本章的`exercise.md`完成作业练习。
 - 教：分析并改进rcore-tutorial-ch6的文档和代码，让自己更高效地完成本章学习。
-- 用：基于rcore-tutorial-ch6的源代码，实现用户态打砖块游戏应用，支持碰撞反弹、计分，及快捷键保存/恢复游戏进度等基本功能；并扩展操作系统内核功能，支持用户态打砖块游戏应用。
+- 用：基于rcore-tutorial-ch6的源代码，实现用户态打砖块游戏应用，支持碰撞反弹、计分，及快捷键保存/恢复游戏进度等基本功能；并扩展操作系统内核功能，支持用户态打砖块游戏应用。[demo](https://github.com/rcore-os/tg-rcore-tutorial-game-demo/blob/main/ch6-breakout.gif)
 
 注：与AI充分合作，并保存与AI合作的交互过程，总结如何做到与AI合作提升自己的操作系统知识与能力。
 
