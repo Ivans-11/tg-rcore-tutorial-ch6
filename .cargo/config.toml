@@ -25,4 +25,4 @@ runner = [
 [env]
 TG_USER_CRATE     = "tg-rcore-tutorial-user"
 TG_USER_LOCAL_DIR = "tg-rcore-tutorial-user"
-TG_USER_VERSION   = "0.4.5"
+TG_USER_VERSION   = "0.4.8"

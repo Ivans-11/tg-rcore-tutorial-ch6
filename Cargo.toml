@@ -1,7 +1,7 @@
 [package]
 name = "tg-rcore-tutorial-ch6"
 description = "Chapter 6 of rCore Tutorial: File system with easy-fs and virtio block device."
-version = "0.4.6"
+version = "0.4.8"
 edition = "2024"
 authors = ["YdrMaster <ydrml@hotmail.com>","Yifan Wang<w-yf22@mails.tsinghua.edu.cn>","Yu Chen <yuchen@tsinghua.edu.cn>"]
 repository = "https://github.com/rcore-os/tg-rcore-tutorial-ch6"
@@ -31,18 +31,18 @@ xmas-elf = "0.8.0"
 riscv = "0.10.1"
 spin = "0.9"
 
-tg-sbi = { package = "tg-rcore-tutorial-sbi", path = "../tg-rcore-tutorial-sbi", version = "0.4.5", features = ["nobios"] }
-tg-linker = { package = "tg-rcore-tutorial-linker", path = "../tg-rcore-tutorial-linker", version = "0.4.5" }
-tg-console = { package = "tg-rcore-tutorial-console", path = "../tg-rcore-tutorial-console", version = "0.4.5" }
-tg-kernel-context = { package = "tg-rcore-tutorial-kernel-context", path = "../tg-rcore-tutorial-kernel-context", version = "0.4.5", features = ["foreign"] }
-tg-kernel-alloc = { package = "tg-rcore-tutorial-kernel-alloc", path = "../tg-rcore-tutorial-kernel-alloc", version = "0.4.5" }
-tg-kernel-vm = { package = "tg-rcore-tutorial-kernel-vm", path = "../tg-rcore-tutorial-kernel-vm", version = "0.4.5" }
-tg-syscall = { package = "tg-rcore-tutorial-syscall", path = "../tg-rcore-tutorial-syscall", version = "0.4.5", features = ["kernel"] }
-tg-task-manage = { package = "tg-rcore-tutorial-task-manage", path = "../tg-rcore-tutorial-task-manage", version = "0.4.5", features = ["proc"] }
-tg-easy-fs = { package = "tg-rcore-tutorial-easy-fs", path = "../tg-rcore-tutorial-easy-fs", version = "0.4.5" }
+tg-sbi = { package = "tg-rcore-tutorial-sbi", path = "../tg-rcore-tutorial-sbi", version = "0.4.8", features = ["nobios"] }
+tg-linker = { package = "tg-rcore-tutorial-linker", path = "../tg-rcore-tutorial-linker", version = "0.4.8" }
+tg-console = { package = "tg-rcore-tutorial-console", path = "../tg-rcore-tutorial-console", version = "0.4.8" }
+tg-kernel-context = { package = "tg-rcore-tutorial-kernel-context", path = "../tg-rcore-tutorial-kernel-context", version = "0.4.8", features = ["foreign"] }
+tg-kernel-alloc = { package = "tg-rcore-tutorial-kernel-alloc", path = "../tg-rcore-tutorial-kernel-alloc", version = "0.4.8" }
+tg-kernel-vm = { package = "tg-rcore-tutorial-kernel-vm", path = "../tg-rcore-tutorial-kernel-vm", version = "0.4.8" }
+tg-syscall = { package = "tg-rcore-tutorial-syscall", path = "../tg-rcore-tutorial-syscall", version = "0.4.8", features = ["kernel"] }
+tg-task-manage = { package = "tg-rcore-tutorial-task-manage", path = "../tg-rcore-tutorial-task-manage", version = "0.4.8", features = ["proc"] }
+tg-easy-fs = { package = "tg-rcore-tutorial-easy-fs", path = "../tg-rcore-tutorial-easy-fs", version = "0.4.8" }
 
 [build-dependencies]
-tg-linker = { package = "tg-rcore-tutorial-linker", path = "../tg-rcore-tutorial-linker", version = "0.4.5" }
-tg-easy-fs = { package = "tg-rcore-tutorial-easy-fs", path = "../tg-rcore-tutorial-easy-fs", version = "0.4.5" }
+tg-linker = { package = "tg-rcore-tutorial-linker", path = "../tg-rcore-tutorial-linker", version = "0.4.8" }
+tg-easy-fs = { package = "tg-rcore-tutorial-easy-fs", path = "../tg-rcore-tutorial-easy-fs", version = "0.4.8" }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
