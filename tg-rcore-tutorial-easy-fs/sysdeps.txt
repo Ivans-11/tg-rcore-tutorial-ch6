@@ -1,0 +1,1 @@
+"tg-rcore-tutorial-easy-fs" "../.."

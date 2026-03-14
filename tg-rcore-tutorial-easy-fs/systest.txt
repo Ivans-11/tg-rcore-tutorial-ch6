@@ -1,0 +1,7 @@
+"tg-rcore-tutorial-ch2"  "./test.sh base" "Test PASSED: 5/5"
+"tg-rcore-tutorial-ch3"  "./test.sh base" "Test PASSED: 4/4"
+"tg-rcore-tutorial-ch4"  "./test.sh base" "Test PASSED: 6/6"
+"tg-rcore-tutorial-ch5"  "./test.sh base" "Test PASSED: 14/14"
+"tg-rcore-tutorial-ch6"  "./test.sh base" "Test PASSED: 15/15"
+"tg-rcore-tutorial-ch7"  "./test.sh base" "Test PASSED: 18/18"
+"tg-rcore-tutorial-ch8"  "./test.sh base" "Test PASSED: 22/22"

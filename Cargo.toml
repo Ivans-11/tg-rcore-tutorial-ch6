@@ -36,13 +36,13 @@ tg-linker = { package = "tg-rcore-tutorial-linker", version = "0.4.8" }
 tg-console = { package = "tg-rcore-tutorial-console", version = "0.4.8" }
 tg-kernel-context = { package = "tg-rcore-tutorial-kernel-context", version = "0.4.8", features = ["foreign"] }
 tg-kernel-alloc = { package = "tg-rcore-tutorial-kernel-alloc", version = "0.4.8" }
-tg-kernel-vm = { package = "tg-rcore-tutorial-kernel-vm", version = "0.4.8" }
+tg-kernel-vm = { package = "tg-rcore-tutorial-kernel-vm", path = "./tg-rcore-tutorial-kernel-vm" }
 tg-syscall = { package = "tg-rcore-tutorial-syscall", version = "0.4.8", features = ["kernel"] }
 tg-task-manage = { package = "tg-rcore-tutorial-task-manage", version = "0.4.8", features = ["proc"] }
-tg-easy-fs = { package = "tg-rcore-tutorial-easy-fs", version = "0.4.8" }
+tg-easy-fs = { package = "tg-rcore-tutorial-easy-fs", path = "./tg-rcore-tutorial-easy-fs" }
 
 [build-dependencies]
 tg-linker = { package = "tg-rcore-tutorial-linker", version = "0.4.8" }
-tg-easy-fs = { package = "tg-rcore-tutorial-easy-fs", version = "0.4.8" }
+tg-easy-fs = { package = "tg-rcore-tutorial-easy-fs", path = "./tg-rcore-tutorial-easy-fs" }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
