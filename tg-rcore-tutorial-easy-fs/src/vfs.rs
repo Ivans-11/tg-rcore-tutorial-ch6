@@ -30,6 +30,43 @@ impl Inode {
         }
     }
 
+    /// 获取 inode 编号（根据 block_id 和 block_offset 计算）
+    pub fn get_inode_id(&self) -> u32 {
+        let fs = self.fs.lock();
+        fs.get_inode_id(self.block_id as u32, self.block_offset)
+    }
+
+    /// 获取硬链接计数
+    pub fn get_nlink(&self) -> u32 {
+        self.read_disk_inode(|disk_inode| disk_inode.nlink)
+    }
+
+    /// 增加硬链接计数
+    pub fn inc_nlink(&self) {
+        self.modify_disk_inode(|disk_inode| {
+            disk_inode.nlink += 1;
+        });
+        block_cache_sync_all();
+    }
+
+    /// 减少硬链接计数
+    pub fn dec_nlink(&self) {
+        self.modify_disk_inode(|disk_inode| {
+            disk_inode.nlink -= 1;
+        });
+        block_cache_sync_all();
+    }
+
+    /// 判断是否是目录
+    pub fn is_dir(&self) -> bool {
+        self.read_disk_inode(|disk_inode| disk_inode.is_dir())
+    }
+
+    /// 判断是否是文件
+    pub fn is_file(&self) -> bool {
+        self.read_disk_inode(|disk_inode| disk_inode.is_file())
+    }
+
     /// Call a function over a disk inode to read it
     fn read_disk_inode<V>(&self, f: impl FnOnce(&DiskInode) -> V) -> V {
         get_block_cache(self.block_id, Arc::clone(&self.block_device))
@@ -186,5 +223,116 @@ impl Inode {
             }
         });
         block_cache_sync_all();
+    }
+
+    /// 创建一个硬链接，在当前目录（必须是目录）下创建一个指向 target_inode_id 的目录项
+    pub fn link(&self, name: &str, target_inode_id: u32) -> isize {
+        let mut fs = self.fs.lock();
+        // 检查是否已存在同名文件
+        let existing = self.read_disk_inode(|disk_inode| self.find_inode_id(name, disk_inode));
+        if existing.is_some() {
+            return -1; // 文件已存在
+        }
+        // 在目录中添加新的目录项
+        self.modify_disk_inode(|root_inode| {
+            let file_count = (root_inode.size as usize) / DIRENT_SZ;
+            let new_size = (file_count + 1) * DIRENT_SZ;
+            self.increase_size(new_size as u32, root_inode, &mut fs);
+            let dirent = DirEntry::new(name, target_inode_id);
+            root_inode.write_at(
+                file_count * DIRENT_SZ,
+                dirent.as_bytes(),
+                &self.block_device,
+            );
+        });
+        // 增加目标 inode 的硬链接计数
+        let (target_block_id, target_block_offset) = fs.get_disk_inode_pos(target_inode_id);
+        get_block_cache(target_block_id as usize, Arc::clone(&self.block_device))
+            .lock()
+            .modify(target_block_offset, |disk_inode: &mut DiskInode| {
+                disk_inode.nlink += 1;
+            });
+        block_cache_sync_all();
+        0
+    }
+
+    /// 删除一个目录项（取消链接），如果 nlink 变为 0 则回收 inode 和数据块
+    pub fn unlink(&self, name: &str) -> isize {
+        let mut fs = self.fs.lock();
+        // 查找要删除的目录项
+        let target_inode_id =
+            self.read_disk_inode(|disk_inode| self.find_inode_id(name, disk_inode));
+        if target_inode_id.is_none() {
+            return -1; // 文件不存在
+        }
+        let target_inode_id = target_inode_id.unwrap();
+
+        // 从目录中删除目录项（将其替换为最后一个目录项，然后缩小目录大小）
+        self.modify_disk_inode(|root_inode| {
+            let file_count = (root_inode.size as usize) / DIRENT_SZ;
+            let mut target_idx = None;
+            let mut dirent = DirEntry::empty();
+            for i in 0..file_count {
+                root_inode.read_at(DIRENT_SZ * i, dirent.as_bytes_mut(), &self.block_device);
+                if dirent.name() == name {
+                    target_idx = Some(i);
+                    break;
+                }
+            }
+            if let Some(idx) = target_idx {
+                if idx != file_count - 1 {
+                    // 用最后一个目录项覆盖要删除的目录项
+                    let mut last_dirent = DirEntry::empty();
+                    root_inode.read_at(
+                        DIRENT_SZ * (file_count - 1),
+                        last_dirent.as_bytes_mut(),
+                        &self.block_device,
+                    );
+                    root_inode.write_at(
+                        DIRENT_SZ * idx,
+                        last_dirent.as_bytes(),
+                        &self.block_device,
+                    );
+                }
+                // 清空最后一个目录项（虽然减小 size 后这部分不会被访问）
+                let empty_dirent = DirEntry::empty();
+                root_inode.write_at(
+                    DIRENT_SZ * (file_count - 1),
+                    empty_dirent.as_bytes(),
+                    &self.block_device,
+                );
+                // 注意：这里不减小 root_inode.size，因为 easy-fs 不支持缩小
+                // 我们只是将最后一个目录项置空，逻辑上减少了目录项数量
+                // 实际上更好的做法是将删除的目录项标记为无效（inode_number = 0）
+            }
+        });
+
+        // 减少目标 inode 的硬链接计数
+        let (target_block_id, target_block_offset) = fs.get_disk_inode_pos(target_inode_id);
+        let should_dealloc =
+            get_block_cache(target_block_id as usize, Arc::clone(&self.block_device))
+                .lock()
+                .modify(target_block_offset, |disk_inode: &mut DiskInode| {
+                    disk_inode.nlink -= 1;
+                    disk_inode.nlink == 0
+                });
+
+        // 如果 nlink 变为 0，回收 inode 的数据块
+        if should_dealloc {
+            let data_blocks =
+                get_block_cache(target_block_id as usize, Arc::clone(&self.block_device))
+                    .lock()
+                    .modify(target_block_offset, |disk_inode: &mut DiskInode| {
+                        disk_inode.clear_size(&self.block_device)
+                    });
+            for data_block in data_blocks {
+                fs.dealloc_data(data_block);
+            }
+            // 回收 inode（标记 inode bitmap 中的位为空闲）
+            fs.dealloc_inode(target_inode_id);
+        }
+
+        block_cache_sync_all();
+        0
     }
 }

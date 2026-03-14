@@ -82,14 +82,24 @@ impl FSManager for FileSystem {
         Some(self.root.readdir())
     }
 
-    /// 创建硬链接（TODO 练习题）
-    fn link(&self, _src: &str, _dst: &str) -> isize {
-        unimplemented!()
+    /// 创建硬链接
+    fn link(&self, src: &str, dst: &str) -> isize {
+        // 检查源文件和目标文件名是否相同
+        if src == dst {
+            return -1;
+        }
+        // 查找源文件的 inode
+        if let Some(src_inode) = self.find(src) {
+            // 在根目录下创建硬链接
+            self.root.link(dst, src_inode.get_inode_id())
+        } else {
+            -1 // 源文件不存在
+        }
     }
 
-    /// 删除硬链接（TODO 练习题）
-    fn unlink(&self, _path: &str) -> isize {
-        unimplemented!()
+    /// 删除硬链接
+    fn unlink(&self, path: &str) -> isize {
+        self.root.unlink(path)
     }
 }
 

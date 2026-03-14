@@ -83,6 +83,51 @@ impl<Meta: VmMeta, M: PageManager<Meta>> AddressSpace<Meta, M> {
         self.map_extern(range, self.page_manager.v_to_p(page), flags)
     }
 
+    /// 检查指定的 VPN 是否已被映射
+    pub fn is_mapped(&self, vpn: VPN<Meta>) -> bool {
+        let mut visitor = Visitor::new(self);
+        self.root().walk(Pos::new(vpn, 0), &mut visitor);
+        visitor.ans().map_or(false, |pte| pte.is_valid())
+    }
+
+    /// 检查指定的 VPN 范围是否与已有映射重叠
+    pub fn overlaps(&self, range: &Range<VPN<Meta>>) -> bool {
+        for area in &self.areas {
+            // 检查两个范围是否有交集
+            if range.start < area.end && area.start < range.end {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// 检查指定的 VPN 范围是否完全被映射（所有页都已映射）
+    pub fn fully_mapped(&self, range: &Range<VPN<Meta>>) -> bool {
+        let mut vpn = range.start;
+        while vpn < range.end {
+            if !self.is_mapped(vpn) {
+                return false;
+            }
+            vpn = vpn + 1;
+        }
+        true
+    }
+
+    /// 分配物理页并映射（不拷贝数据，用于 mmap）
+    pub fn map_alloc(&mut self, range: Range<VPN<Meta>>, mut flags: VmFlags<Meta>) {
+        let count = range.end.val() - range.start.val();
+        if count == 0 {
+            return;
+        }
+        let page = self.page_manager.allocate(count, &mut flags);
+        // 清零分配的页面
+        unsafe {
+            let size = count << Meta::PAGE_BITS;
+            core::slice::from_raw_parts_mut(page.as_ptr(), size).fill(0);
+        }
+        self.map_extern(range, self.page_manager.v_to_p(page), flags)
+    }
+
     /// 取消指定 VPN 范围的映射
     pub fn unmap(&mut self, range: Range<VPN<Meta>>) {
         // 教学提醒：这里主要做“撤销页表映射”，并未回收物理页到分配器。

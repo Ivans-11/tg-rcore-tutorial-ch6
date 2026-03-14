@@ -579,36 +579,130 @@ mod impls {
             0
         }
 
-        /// linkat 系统调用：创建硬链接
-        ///
-        /// TODO: 实现 linkat 系统调用（练习题）
+        // 实现 linkat 系统调用
         fn linkat(
             &self,
             _caller: Caller,
             _olddirfd: i32,
-            _oldpath: usize,
+            oldpath: usize,
             _newdirfd: i32,
-            _newpath: usize,
+            newpath: usize,
             _flags: u32,
         ) -> isize {
-            tg_console::log::info!("linkat: not implemented");
-            -1
+            let current = PROCESSOR.get_mut().current().unwrap();
+
+            // 读取旧路径名
+            let old_name = if let Some(ptr) = current
+                .address_space
+                .translate::<u8>(VAddr::new(oldpath), READABLE)
+            {
+                let mut string = String::new();
+                let mut raw_ptr: *mut u8 = ptr.as_ptr();
+                loop {
+                    unsafe {
+                        let ch = *raw_ptr;
+                        if ch == 0 {
+                            break;
+                        }
+                        string.push(ch as char);
+                        raw_ptr = (raw_ptr as usize + 1) as *mut u8;
+                    }
+                }
+                string
+            } else {
+                return -1;
+            };
+
+            // 读取新路径名
+            let new_name = if let Some(ptr) = current
+                .address_space
+                .translate::<u8>(VAddr::new(newpath), READABLE)
+            {
+                let mut string = String::new();
+                let mut raw_ptr: *mut u8 = ptr.as_ptr();
+                loop {
+                    unsafe {
+                        let ch = *raw_ptr;
+                        if ch == 0 {
+                            break;
+                        }
+                        string.push(ch as char);
+                        raw_ptr = (raw_ptr as usize + 1) as *mut u8;
+                    }
+                }
+                string
+            } else {
+                return -1;
+            };
+
+            FS.link(&old_name, &new_name)
         }
 
-        /// unlinkat 系统调用：删除硬链接
-        ///
-        /// TODO: 实现 unlinkat 系统调用（练习题）
-        fn unlinkat(&self, _caller: Caller, _dirfd: i32, _path: usize, _flags: u32) -> isize {
-            tg_console::log::info!("unlinkat: not implemented");
-            -1
+        // 实现 unlinkat 系统调用
+        fn unlinkat(&self, _caller: Caller, _dirfd: i32, path: usize, _flags: u32) -> isize {
+            let current = PROCESSOR.get_mut().current().unwrap();
+
+            // 读取路径名
+            let name =
+                if let Some(ptr) = current.address_space.translate::<u8>(VAddr::new(path), READABLE) {
+                    let mut string = String::new();
+                    let mut raw_ptr: *mut u8 = ptr.as_ptr();
+                    loop {
+                        unsafe {
+                            let ch = *raw_ptr;
+                            if ch == 0 {
+                                break;
+                            }
+                            string.push(ch as char);
+                            raw_ptr = (raw_ptr as usize + 1) as *mut u8;
+                        }
+                    }
+                    string
+                } else {
+                    return -1;
+                };
+
+            FS.unlink(&name)
         }
 
-        /// fstat 系统调用：获取文件状态
-        ///
-        /// TODO: 实现 fstat 系统调用（练习题）
-        fn fstat(&self, _caller: Caller, _fd: usize, _st: usize) -> isize {
-            tg_console::log::info!("fstat: not implemented");
-            -1
+        // 实现 fstat 系统调用
+        fn fstat(&self, _caller: Caller, fd: usize, st: usize) -> isize {
+            let current = PROCESSOR.get_mut().current().unwrap();
+
+            // 检查 fd 是否有效
+            if fd >= current.fd_table.len() || current.fd_table[fd].is_none() {
+                return -1;
+            }
+
+            // 获取文件句柄
+            let file = current.fd_table[fd].as_ref().unwrap().lock();
+
+            // 获取 inode
+            if let Some(inode) = &file.inode {
+                // 获取文件信息
+                let ino = inode.get_inode_id() as u64;
+                let nlink = inode.get_nlink();
+                let mode = if inode.is_dir() {
+                    tg_syscall::StatMode::DIR
+                } else {
+                    tg_syscall::StatMode::FILE
+                };
+
+                // 写入用户空间的 Stat 结构体
+                if let Some(mut ptr) = current.address_space.translate::<tg_syscall::Stat>(VAddr::new(st), WRITEABLE) {
+                    let mut stat = tg_syscall::Stat::new();
+                    stat.dev = 0;
+                    stat.ino = ino;
+                    stat.mode = mode;
+                    stat.nlink = nlink;
+                    unsafe { *ptr.as_mut() = stat };
+                    0
+                } else {
+                    -1
+                }
+            } else {
+                -1 // 无效的文件句柄（没有 inode）
+            }
         }
     }
 
@@ -693,14 +787,40 @@ mod impls {
             current.pid.get_usize() as _
         }
 
-        /// spawn 系统调用（TODO 练习题）
-        fn spawn(&self, _caller: Caller, _path: usize, _count: usize) -> isize {
+        // 实现 spawn 系统调用
+        fn spawn(&self, _caller: Caller, path: usize, count: usize) -> isize {
+            const READABLE: VmFlags<Sv39> = build_flags("RV");
             let current = PROCESSOR.get_mut().current().unwrap();
-            tg_console::log::info!(
-                "spawn: parent pid = {}, not implemented",
-                current.pid.get_usize()
-            );
-            -1
+            let parent_pid = current.pid;
+
+            // 读取路径名并打开文件
+            let file = current
+                .address_space
+                .translate::<u8>(VAddr::new(path), READABLE)
+                .map(|ptr| unsafe {
+                    core::str::from_utf8_unchecked(core::slice::from_raw_parts(ptr.as_ptr(), count))
+                })
+                .and_then(|name| FS.open(name, OpenFlags::RDONLY));
+
+            // 加载程序并创建新进程
+            match file {
+                Some(fd) => {
+                    let elf_data = read_all(fd);
+                    if let Ok(elf) = ElfFile::new(&elf_data) {
+                        if let Some(child_proc) = crate::process::Process::from_elf(elf) {
+                            let child_pid = child_proc.pid;
+                            PROCESSOR.get_mut().add(child_pid, child_proc, parent_pid);
+                            return child_pid.get_usize() as isize;
+                        }
+                    }
+                    log::error!("spawn: failed to parse ELF");
+                    -1
+                }
+                None => {
+                    log::error!("spawn: failed to open file");
+                    -1
+                }
+            }
         }
 
         /// sbrk 系统调用：调整堆大小
@@ -763,9 +883,8 @@ mod impls {
         }
     }
 
-    /// 内存管理系统调用实现
     impl Memory for SyscallContext {
-        /// mmap 系统调用（TODO 练习题）
+        // 实现 mmap 系统调用
         fn mmap(
             &self,
             _caller: Caller,
@@ -776,16 +895,90 @@ mod impls {
             _fd: i32,
             _offset: usize,
         ) -> isize {
-            tg_console::log::info!(
-                "mmap: addr = {addr:#x}, len = {len}, prot = {prot}, not implemented"
-            );
-            -1
+            const PAGE_SIZE: usize = 1 << Sv39::PAGE_BITS;
+
+            // 检查 addr 是否页对齐
+            if addr & (PAGE_SIZE - 1) != 0 {
+                return -1;
+            }
+
+            // 检查 prot 参数
+            if prot & !0x7 != 0 {
+                return -1;
+            }
+            if prot & 0x7 == 0 {
+                return -1;
+            }
+
+            // len 为 0 时直接返回成功
+            if len == 0 {
+                return 0;
+            }
+
+            // 计算页范围
+            let start_vpn = VPN::<Sv39>::new(addr >> Sv39::PAGE_BITS);
+            let end_addr = addr + len;
+            let end_vpn = VPN::<Sv39>::new((end_addr + PAGE_SIZE - 1) >> Sv39::PAGE_BITS);
+            let range = start_vpn..end_vpn;
+
+            let current = PROCESSOR.get_mut().current().unwrap();
+
+            // 检查是否与已有映射重叠
+            if current.address_space.overlaps(&range) {
+                return -1;
+            }
+
+            // 构建 VmFlags
+            let mut flags_str: [u8; 5] = *b"U___V";
+            if prot & 0x4 != 0 {
+                flags_str[1] = b'X';
+            }
+            if prot & 0x2 != 0 {
+                flags_str[2] = b'W';
+            }
+            if prot & 0x1 != 0 {
+                flags_str[3] = b'R';
+            }
+            let flags =
+                build_flags(unsafe { core::str::from_utf8_unchecked(&flags_str) });
+
+            // 分配物理页并建立映射
+            current.address_space.map_alloc(range, flags);
+
+            0
         }
 
-        /// munmap 系统调用（TODO 练习题）
+        // 实现 munmap 系统调用
         fn munmap(&self, _caller: Caller, addr: usize, len: usize) -> isize {
-            tg_console::log::info!("munmap: addr = {addr:#x}, len = {len}, not implemented");
-            -1
+            const PAGE_SIZE: usize = 1 << Sv39::PAGE_BITS;
+
+            // 检查 addr 是否页对齐
+            if addr & (PAGE_SIZE - 1) != 0 {
+                return -1;
+            }
+
+            // len 为 0 时直接返回成功
+            if len == 0 {
+                return 0;
+            }
+
+            // 计算页范围
+            let start_vpn = VPN::<Sv39>::new(addr >> Sv39::PAGE_BITS);
+            let end_addr = addr + len;
+            let end_vpn = VPN::<Sv39>::new((end_addr + PAGE_SIZE - 1) >> Sv39::PAGE_BITS);
+            let range = start_vpn..end_vpn;
+
+            let current = PROCESSOR.get_mut().current().unwrap();
+
+            // 检查该范围是否完全被映射
+            if !current.address_space.fully_mapped(&range) {
+                return -1;
+            }
+
+            // 取消映射
+            current.address_space.unmap(range);
+
+            0
         }
     }
 }
